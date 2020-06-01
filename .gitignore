@@ -1,1 +1,10 @@
+.vs
 .vscode
+Debug
+Release
+*.sln
+*.vcxproj
+*.filters
+*.user
+*.exe
+test.cpp

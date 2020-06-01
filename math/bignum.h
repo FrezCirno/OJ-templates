@@ -10,6 +10,7 @@
  * Code by frezcirno
  */
 #include <cmath>
+#include <cstring>
 #include <vector>
 #include <iomanip>
 #include <assert.h>
@@ -18,11 +19,12 @@ class bignum {
     using sign_type = int;
     using unit_type = long long;
     using base_type = std::vector<unit_type>;
+    using digitcount_t = int;
 
 public:
     static constexpr double PI = 3.141592653589793;
-    static const int baseExp = 8;
-    static const unit_type unit_max = 100000000;
+    static const digitcount_t unit_base_exp = 4;
+    static const unit_type unit_base = 10000;
 
     struct complex {
         double re, im;
@@ -45,7 +47,7 @@ public:
     bignum(long long x = 0) : _base() {
         unsigned long long ux = x;
         if (x < 0) { ux = -x; _sign = 1; }
-        while (ux) { _base.push_back(ux % bignum::unit_max); ux /= bignum::unit_max; }
+        while (ux) { _base.push_back(ux % bignum::unit_base); ux /= bignum::unit_base; }
     }
     bignum(const char* s) : _base() { assign(s); }
     bignum(const bignum& x) : _base(x._base), _sign(x._sign) { }
@@ -60,8 +62,8 @@ public:
         int i;
         long long idx = 1;
         clear();
-        for (i = strlen(s) - 1; isdigit(s[i]) && i >= 0; i--, idx *= 10) {
-            if (idx >= bignum::unit_max) idx = 1;
+        for (i = strlen(s) - 1; i >= 0 && isdigit(s[i]); i--, idx *= 10) {
+            if (idx >= bignum::unit_base) idx = 1;
             if (idx == 1) _base.push_back(s[i] - '0');
             else _base.back() += idx * (s[i] - '0');
         }
@@ -71,6 +73,7 @@ public:
     }
     const base_type& base() const { return _base; }
     bool sign() const { return _sign; }
+    operator bool() const { return !_base.empty(); }
     friend std::istream &operator>>(std::istream &is, bignum &b){
         std::string s;
         is >> s;
@@ -84,17 +87,53 @@ public:
             if (first && first--) 
                 os << b._base[i];
             else
-                os << std::setfill('0') << std::setw(bignum::baseExp) << b._base[i];
+                os << std::setfill('0') << std::setw(bignum::unit_base_exp) << b._base[i];
         if (first) os << '0';
         return os;
     }
-    bignum &operator+=(const bignum &b) { return *this=*this+b; }
-    bignum &operator-=(const bignum& b) { return *this=*this-b; }
-    bignum &operator*=(long long x) { return *this=*this*x; }
-    bignum &operator*=(const bignum& b) { return *this=*this*b; }
-    bignum &operator/=(const bignum& b) { return *this=*this/b; }
-    bignum &operator%=(const bignum& b) { return *this=*this%b; }
+    bignum& operator+=(long long x) { return *this = *this + x; }
+    bignum& operator+=(const bignum& b) { return *this = *this + b; }
+    bignum& operator-=(long long x) { return *this = *this - x; }
+    bignum& operator-=(const bignum& b) { return *this = *this - b; }
+    bignum &operator*=(long long x) { return *this = *this * x; }
+    bignum &operator*=(const bignum& b) { return *this = *this * b; }
+    bignum &operator/=(long long x) { return *this = *this / x; }
+    bignum &operator/=(const bignum& b) { return *this = *this / b; }
+    bignum &operator%=(long long x) { return *this = *this % x; }
+    bignum &operator%=(const bignum& b) { return *this = *this % b; }
     bignum operator-() const { return bignum(_base, !_sign); }
+    digitcount_t digitCount() const {
+        if(_base.empty()) return 0;
+        digitcount_t res = bignum::unit_base_exp * (_base.size() - 1);
+        unit_type back = _base.back();
+        if (back <= 10) return res + 1;
+        if (back <= 100) return res + 2;
+        if (back <= 1000) return res + 3;
+        if (back <= 10000) return res + 4;
+        if (back <= 100000) return res + 5;
+        if (back <= 1000000) return res + 6;
+        if (back <= 10000000) return res + 7;
+        if (back <= 100000000) return res + 8;
+        if (back <= 1000000000) return res + 9;
+        if (back <= 10000000000) return res + 10;
+        if (back <= 100000000000) return res + 11;
+        if (back <= 1000000000000) return res + 12;
+        if (back <= 10000000000000) return res + 13;
+        if (back <= 100000000000000) return res + 14;
+        if (back <= 1000000000000000) return res + 15;
+        if (back <= 10000000000000000) return res + 16;
+        if (back <= 100000000000000000) return res + 17;
+        if (back <= 1000000000000000000) return res + 18;
+        return res + 19;
+    }
+    unit_type getdigit(digitcount_t idx) const {
+        digitcount_t seg = idx / bignum::unit_base_exp;
+        if (seg >= _base.size()) return 0;
+        unit_type unit = _base[seg];
+        digitcount_t inseg = idx % bignum::unit_base_exp;
+        while (inseg--) unit /= 10;
+        return unit % 10;
+    }
 
 private:
     bignum(const base_type& base, sign_type sign) : _base(base), _sign(sign) {}
@@ -111,13 +150,13 @@ private:
         if (l2 > res._base.size()) res._base.resize(l2, 0);
         for (int i = 0; i < l2; i++) {
             res._base[i] += b2._base[i] + carry;
-            carry = (res._base[i] >= bignum::unit_max);
-            if (carry) res._base[i] -= bignum::unit_max;
+            carry = (res._base[i] >= bignum::unit_base);
+            if (carry) res._base[i] -= bignum::unit_base;
         }
         for (int i = l2; carry && i < l1; i++) {
             res._base[i] += carry;
-            carry = (res._base[i] >= bignum::unit_max);
-            if (carry) res._base[i] -= bignum::unit_max;
+            carry = (res._base[i] >= bignum::unit_base);
+            if (carry) res._base[i] -= bignum::unit_base;
         }
         if (carry) res._base.push_back(carry);
         res.trim();
@@ -129,7 +168,7 @@ private:
         for (int i = 0, iEnd = b2._base.size(); i < iEnd; i++) {
             res._base[i] -= b2._base[i] + brw;
             brw = (res._base[i] < 0);
-            if (brw) res._base[i] += bignum::unit_max;
+            if (brw) res._base[i] += bignum::unit_base;
         } assert(brw == 0);
         res.trim();
         return res;
@@ -170,18 +209,26 @@ private:
     }
     
 public:
+    friend bool operator==(const bignum& b1, long long x) { return b1 == bignum(x); }
+    friend bool operator!=(const bignum& b1, long long x) { return !(b1 == bignum(x)); }
+    friend bool operator<(const bignum& b1, long long x) { return b1 < bignum(x); }
+    friend bool operator>=(const bignum& b1, long long x) { return !(b1 < bignum(x)); }
+    friend bool operator>(const bignum& b1, long long x) { return bignum(x) < b1; }
+    friend bool operator<=(const bignum& b1, long long x) { return !(bignum(x) < b1); }
     friend bool operator==(const bignum& b1, const bignum& b2) { return b1._sign == b2._sign && b1._base == b2._base; }
     friend bool operator!=(const bignum& b1, const bignum& b2) { return !(b1 == b2); }
     friend bool operator<(const bignum& b1, const bignum& b2) { return b1._sign && !b2._sign || b1._sign ^ b2._sign ^ (bignum::abscomp(b1, b2) < 0); }
     friend bool operator>=(const bignum& b1, const bignum& b2) { return !(b1 < b2); }
     friend bool operator>(const bignum& b1, const bignum& b2) { return b2 < b1; }
     friend bool operator<=(const bignum& b1, const bignum& b2) { return !(b2 < b1); }
+    friend bignum operator+(const bignum& b1, long long x) { return b1 + bignum(x); }
     friend bignum operator+(const bignum& b1, const bignum& b2)
     {
         if (b1._sign == b2._sign) return (b1._sign == 0 ? bignum::absadd(b1, b2) : -bignum::absadd(b1, b2));
         else if (b1._sign == 0) return b1 - (-b2); // a >= 0, b < 0
         else return b2 - (-b1); // a < 0, b >= 0
     }
+    friend bignum operator-(const bignum& b1, long long x) { return b1-bignum(x); }
     friend bignum operator-(const bignum& b1, const bignum& b2)
     {
         /* 
@@ -203,12 +250,12 @@ public:
         long long carry = 0;
         for (int i = 0, iEnd=ret._base.size(); i < iEnd; i++){
             ret._base[i] = ret._base[i] * x + carry;
-            carry = (ret._base[i] / bignum::unit_max);
-            if (carry) ret._base[i] %= bignum::unit_max;
+            carry = (ret._base[i] / bignum::unit_base);
+            if (carry) ret._base[i] %= bignum::unit_base;
         }
         while (carry) {
-            ret._base.push_back(carry % bignum::unit_max);
-            carry /= bignum::unit_max;
+            ret._base.push_back(carry % bignum::unit_base);
+            carry /= bignum::unit_base;
         }
         ret.trim();
         return ret;
@@ -227,13 +274,12 @@ public:
         fft(x1.data(), len, 1); fft(x2.data(), len, 1);
         for (int i = 0; i < len; i++) x1[i] *= x2[i];
         fft(x1.data(), len, -1);
-        for (int i = 0; i < len; i++)
-            b1._base[i] = round(x1[i].re);
-        long long carry=0;
+        for (int i = 0; i < len; i++) b1._base[i] = round(x1[i].re);
+        long long carry = 0;
         for (int i = 0; i < len; i++) {
             b1._base[i] += carry;
-            carry = b1._base[i] / bignum::unit_max;
-            if (carry) b1._base[i] %= bignum::unit_max;
+            carry = b1._base[i] / bignum::unit_base;
+            if (carry) b1._base[i] %= bignum::unit_base;
         } assert(carry==0);
         b1.trim();
         return b1;
@@ -248,7 +294,7 @@ public:
         ret._base.resize( b1._base.size() );
         long long rest = 0;
         for(int i = b1._base.size() - 1 ;i >= 0; i--){
-            ret._base[i] = rest * bignum::unit_max + b1._base[i];
+            ret._base[i] = rest * bignum::unit_base + b1._base[i];
             rest = ret._base[i] % x;
             ret._base[i] /= x;
         }
@@ -278,7 +324,7 @@ public:
     friend bignum operator%(const bignum& b1, long long x){
         long long d = 0;
         for (int i = b1._base.size() - 1; i >= 0; i--)
-            d = (d * (long long)bignum::unit_max + (long long)b1._base[i]) % x;
+            d = (d * (long long)bignum::unit_base + (long long)b1._base[i]) % x;
         return d;
     }
     friend bignum operator%(const bignum& b1, const bignum& b2){
